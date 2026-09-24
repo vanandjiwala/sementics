@@ -1,0 +1,27 @@
+{
+  "name": "sementics",
+  "version": "1.0.0",
+  "description": "Sementics desktop app",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist:mac": "electron-builder --mac",
+    "dist:win": "electron-builder --win"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.sementics.app",
+    "productName": "Sementics",
+    "files": ["main.js", "preload.js", "index.html"],
+    "mac": {
+      "target": "dmg",
+      "category": "public.app-category.utilities"
+    },
+    "win": {
+      "target": ["nsis", "portable"]
+    }
+  }
+}
