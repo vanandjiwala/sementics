@@ -15,10 +15,12 @@
   },
   "devDependencies": {
     "@electron/notarize": "^3.1.1",
+    "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.1",
     "concurrently": "^10.0.5",
     "electron": "^33.0.0",
     "electron-builder": "^25.1.8",
+    "tailwindcss": "^4.3.3",
     "vite": "^8.3.1",
     "wait-on": "^9.1.0"
   },
@@ -52,6 +54,7 @@
     "afterSign": "build/notarize.js"
   },
   "dependencies": {
+    "@phosphor-icons/react": "^2.1.10",
     "duckdb": "^1.4.4",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
