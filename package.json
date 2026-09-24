@@ -2,26 +2,58 @@
   "name": "sementics",
   "version": "1.0.0",
   "description": "Sementics desktop app",
+  "private": true,
+  "author": "Vasav Anandjiwala",
+  "license": "UNLICENSED",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
-    "dist:mac": "electron-builder --mac",
-    "dist:win": "electron-builder --win"
+    "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && ELECTRON_RENDERER_URL=http://localhost:5173 electron .\"",
+    "build": "vite build",
+    "start": "npm run build && electron .",
+    "dist:mac": "vite build && electron-builder --mac",
+    "dist:win": "vite build && electron-builder --win"
   },
   "devDependencies": {
+    "@electron/notarize": "^3.1.1",
+    "@vitejs/plugin-react": "^6.1.1",
+    "concurrently": "^10.0.5",
     "electron": "^33.0.0",
-    "electron-builder": "^25.1.8"
+    "electron-builder": "^25.1.8",
+    "vite": "^8.3.1",
+    "wait-on": "^9.1.0"
   },
   "build": {
     "appId": "com.sementics.app",
     "productName": "Sementics",
-    "files": ["main.js", "preload.js", "index.html"],
+    "files": [
+      "main.js",
+      "preload.js",
+      "dist-renderer/**/*"
+    ],
     "mac": {
-      "target": "dmg",
-      "category": "public.app-category.utilities"
+      "target": [
+        "dmg",
+        "zip"
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.utilities",
+      "hardenedRuntime": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "gatekeeperAssess": false
     },
     "win": {
-      "target": ["nsis", "portable"]
-    }
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.ico"
+    },
+    "afterSign": "build/notarize.js"
+  },
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "reactflow": "^11.11.4"
   }
 }
