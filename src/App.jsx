@@ -10,10 +10,12 @@ import ReactFlow, {
   useEdgesState,
   useReactFlow,
 } from 'reactflow';
+import NodeConfigPanel from './components/NodeConfigPanel';
 import NodePalette from './components/NodePalette';
 import TopBar from './components/TopBar';
 import WorkflowNode from './components/WorkflowNode';
 import { NODE_CATALOG_BY_KIND } from './data/nodeCatalog';
+import { buildStatements } from './lib/pipeline';
 
 const nodeTypes = { workflowNode: WorkflowNode };
 
@@ -36,29 +38,68 @@ function Flow() {
     [setEdges],
   );
 
-  const runNode = useCallback(
-    (id) => {
+  // Nodes hold data.onRun from creation time, so route it through a ref to always see current state.
+  const executeRef = useRef(null);
+  const onRun = useCallback((id) => executeRef.current(id), []);
+
+  const setStatuses = useCallback(
+    (statusById, errorById = {}) =>
       setNodes((nds) =>
-        nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, status: 'running' } } : n)),
-      );
-      setTimeout(() => {
-        setNodes((nds) =>
-          nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, status: 'success' } } : n)),
-        );
-      }, 1000);
-    },
+        nds.map((n) =>
+          n.id in statusById
+            ? { ...n, data: { ...n.data, status: statusById[n.id], error: errorById[n.id] } }
+            : n,
+        ),
+      ),
     [setNodes],
   );
 
-  const runAll = useCallback(() => {
-    if (workflowStatus === 'running') return;
-    setWorkflowStatus('running');
-    setNodes((nds) => nds.map((n) => ({ ...n, data: { ...n.data, status: 'running' } })));
-    setTimeout(() => {
-      setNodes((nds) => nds.map((n) => ({ ...n, data: { ...n.data, status: 'success' } })));
-      setWorkflowStatus('success');
-    }, 1000);
-  }, [workflowStatus, setNodes]);
+  const execute = useCallback(
+    async (targetId) => {
+      if (workflowStatus === 'running') return;
+      let statements;
+      try {
+        statements = buildStatements(nodes, edges, targetId);
+      } catch (err) {
+        setStatuses({ [err.nodeId]: 'error' }, { [err.nodeId]: err.message });
+        setWorkflowStatus('error');
+        return;
+      }
+      const ids = statements.map((s) => s.nodeId);
+      setStatuses(Object.fromEntries(ids.map((id) => [id, 'running'])));
+      setWorkflowStatus('running');
+
+      let result;
+      try {
+        result = await window.sementics.runStatements(statements);
+      } catch (err) {
+        result = { ok: false, nodeId: ids[0], message: err.message };
+      }
+      const failedAt = result.ok ? ids.length : ids.indexOf(result.nodeId);
+      setStatuses(
+        Object.fromEntries(ids.map((id, i) => [id, i < failedAt ? 'success' : i === failedAt ? 'error' : 'idle'])),
+        result.ok ? {} : { [result.nodeId]: result.message },
+      );
+      setWorkflowStatus(result.ok ? 'success' : 'error');
+    },
+    [workflowStatus, nodes, edges, setStatuses],
+  );
+  executeRef.current = execute;
+
+  const updateNodeData = useCallback(
+    (id, patch) =>
+      setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch(n.data) } } : n))),
+    [setNodes],
+  );
+
+  const selected = nodes.filter((n) => n.selected);
+  const selectedNode = selected.length === 1 ? selected[0] : null;
+  const selectedInputNames = selectedNode
+    ? edges
+        .filter((e) => e.target === selectedNode.id)
+        .map((e) => nodes.find((n) => n.id === e.source)?.data.name)
+        .filter(Boolean)
+    : [];
 
   const onDragOver = useCallback((event) => {
     event.preventDefault();
@@ -72,22 +113,29 @@ function Flow() {
       if (!kind || !NODE_CATALOG_BY_KIND[kind]) return;
 
       const position = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+      const id = nextNodeId();
       const newNode = {
-        id: nextNodeId(),
+        id,
         type: 'workflowNode',
         position,
-        data: { kind, status: 'idle', onRun: runNode },
+        data: {
+          kind,
+          name: `${NODE_CATALOG_BY_KIND[kind].namePrefix}_${id.split('-')[1]}`,
+          config: {},
+          status: 'idle',
+          onRun,
+        },
       };
       setNodes((nds) => nds.concat(newNode));
     },
-    [screenToFlowPosition, setNodes, runNode],
+    [screenToFlowPosition, setNodes, onRun],
   );
 
   return (
     <div className="flex h-screen w-screen flex-col bg-background text-foreground">
       <TopBar
         status={workflowStatus}
-        onRunAll={runAll}
+        onRunAll={() => execute()}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
       />
@@ -124,6 +172,17 @@ function Flow() {
             />
           </ReactFlow>
         </div>
+        {selectedNode && (
+          <NodeConfigPanel
+            key={selectedNode.id}
+            node={selectedNode}
+            inputNames={selectedInputNames}
+            onNameChange={(name) => updateNodeData(selectedNode.id, () => ({ name }))}
+            onConfigChange={(key, value) =>
+              updateNodeData(selectedNode.id, (d) => ({ config: { ...d.config, [key]: value } }))
+            }
+          />
+        )}
       </div>
     </div>
   );

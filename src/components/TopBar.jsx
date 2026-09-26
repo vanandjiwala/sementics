@@ -1,16 +1,18 @@
 import React from 'react';
-import { Play, Spinner, CheckCircle, SidebarSimple } from '@phosphor-icons/react';
+import { Play, Spinner, CheckCircle, SidebarSimple, WarningCircle } from '@phosphor-icons/react';
 
 const STATUS_ICON = {
   idle: Play,
   running: Spinner,
   success: CheckCircle,
+  error: WarningCircle,
 };
 
 const STATUS_LABEL = {
   idle: 'Run Workflow',
   running: 'Running…',
   success: 'Done',
+  error: 'Failed — Retry',
 };
 
 export default function TopBar({ status, onRunAll, sidebarOpen, onToggleSidebar }) {

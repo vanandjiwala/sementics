@@ -1,13 +1,21 @@
 import React from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
-import { Play, Spinner, CheckCircle, Trash } from '@phosphor-icons/react';
+import { Play, Spinner, CheckCircle, Trash, WarningCircle } from '@phosphor-icons/react';
 import { NODE_CATALOG_BY_KIND } from '../data/nodeCatalog';
 
 const STATUS_ICON = {
   idle: Play,
   running: Spinner,
   success: CheckCircle,
+  error: WarningCircle,
 };
+
+const STATUS_COLOR = { success: 'var(--color-accent)', error: 'var(--color-destructive)' };
+
+function summary({ kind, config = {} }) {
+  if (kind === 'sql') return config.query?.trim().split('\n')[0];
+  return config.path?.split(/[\\/]/).pop();
+}
 
 export default function WorkflowNode({ id, data, selected }) {
   const { deleteElements } = useReactFlow();
@@ -34,12 +42,12 @@ export default function WorkflowNode({ id, data, selected }) {
             type="button"
             onClick={() => data.onRun?.(id)}
             className="nodrag flex h-6 w-6 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-            aria-label={status === 'idle' ? 'Run node' : status === 'running' ? 'Running' : 'Ran successfully'}
+            aria-label={{ idle: 'Run node', running: 'Running', success: 'Ran successfully — run again', error: 'Failed — run again' }[status]}
           >
             <StatusIcon
               size={14}
-              weight={status === 'success' ? 'fill' : 'regular'}
-              color={status === 'success' ? 'var(--color-accent)' : undefined}
+              weight={status in STATUS_COLOR ? 'fill' : 'regular'}
+              color={STATUS_COLOR[status]}
               className={status === 'running' ? 'animate-spin' : undefined}
             />
           </button>
@@ -53,7 +61,11 @@ export default function WorkflowNode({ id, data, selected }) {
           </button>
         </div>
       </div>
-      <div className="px-3 py-2 text-xs text-muted-foreground">{catalogEntry.description}</div>
+      <div className="flex max-w-64 flex-col gap-1 px-3 py-2 text-xs">
+        <span className="text-foreground">{data.name}</span>
+        <span className="truncate text-muted-foreground">{summary(data) || catalogEntry.description}</span>
+        {data.error && <span className="whitespace-pre-wrap break-words text-destructive">{data.error}</span>}
+      </div>
       {catalogEntry.category !== 'output' && <Handle type="source" position={Position.Right} />}
     </div>
   );

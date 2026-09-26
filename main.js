@@ -1,5 +1,40 @@
-const { app, BrowserWindow, session, shell } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, session, shell } = require('electron');
 const path = require('path');
+const duckdb = require('duckdb');
+
+// Run compiled workflow statements in a fresh in-memory DB; report the first failing node.
+ipcMain.handle('duckdb:run', async (_event, statements) => {
+  const db = new duckdb.Database(':memory:');
+  try {
+    for (const { nodeId, sql } of statements) {
+      try {
+        await new Promise((resolve, reject) => db.exec(sql, (err) => (err ? reject(err) : resolve())));
+      } catch (err) {
+        return { ok: false, nodeId, message: err.message };
+      }
+    }
+    return { ok: true };
+  } finally {
+    db.close();
+  }
+});
+
+const CSV_FILTERS = [{ name: 'CSV', extensions: ['csv', 'tsv', 'txt', 'gz'] }, { name: 'All files', extensions: ['*'] }];
+
+ipcMain.handle('dialog:openCsv', async (event) => {
+  const { canceled, filePaths } = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
+    properties: ['openFile'],
+    filters: CSV_FILTERS,
+  });
+  return canceled ? null : filePaths[0];
+});
+
+ipcMain.handle('dialog:saveCsv', async (event) => {
+  const { canceled, filePath } = await dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender), {
+    filters: CSV_FILTERS,
+  });
+  return canceled ? null : filePath;
+});
 
 function createWindow() {
   const win = new BrowserWindow({
