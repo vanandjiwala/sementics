@@ -1,7 +1,19 @@
 import React from 'react';
-import { Play, Spinner, CheckCircle, SidebarSimple, WarningCircle, ListChecks } from '@phosphor-icons/react';
+import { Play, Spinner, CheckCircle, SidebarSimple, WarningCircle, ListChecks, FolderOpen, Export } from '@phosphor-icons/react';
 
 const ACTIONS = {
+  open: {
+    label: 'Open',
+    icon: FolderOpen,
+    title: 'Open a workflow from a JSON file',
+    className: 'border border-border text-foreground hover:bg-muted',
+  },
+  export: {
+    label: 'Export',
+    icon: Export,
+    title: 'Save the workflow as a JSON file',
+    className: 'border border-border text-foreground hover:bg-muted',
+  },
   dryRun: {
     label: 'Dry Run',
     icon: ListChecks,
@@ -40,7 +52,12 @@ function statusOf(running, mode, lastResult) {
     return { icon: Spinner, spin: true, text: mode === 'dryRun' ? 'Validating…' : 'Running…', tone: 'text-muted-foreground' };
   }
   if (!lastResult) return null;
-  const { mode: m, ok, count, name } = lastResult;
+  const { mode: m, ok, count, name, message } = lastResult;
+  if (m === 'export' || m === 'open') {
+    return ok
+      ? { icon: CheckCircle, text: `${m === 'export' ? 'Saved' : 'Opened'} ${name}`, tone: 'text-accent' }
+      : { icon: WarningCircle, text: `${m === 'export' ? 'Export' : 'Open'} failed: ${message}`, tone: 'text-destructive' };
+  }
   if (ok) {
     const text = `${m === 'dryRun' ? 'Dry run passed' : 'Run complete'} · ${count} node${count === 1 ? '' : 's'}`;
     return { icon: CheckCircle, text, tone: 'text-accent' };
@@ -87,7 +104,7 @@ function StatusPill({ running, mode, lastResult, onFocusNode }) {
   );
 }
 
-export default function TopBar({ running, mode, lastResult, onRunAll, onDryRun, onFocusNode, sidebarOpen, onToggleSidebar }) {
+export default function TopBar({ running, mode, lastResult, onRunAll, onDryRun, onExport, onOpen, onFocusNode, sidebarOpen, onToggleSidebar }) {
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-3">
       <div className="flex shrink-0 items-center gap-2">
@@ -100,6 +117,8 @@ export default function TopBar({ running, mode, lastResult, onRunAll, onDryRun, 
           <SidebarSimple size={18} />
         </button>
         <span className="font-mono text-sm font-semibold">Sementics</span>
+        <ActionButton kind="open" running={running} busy={false} onClick={onOpen} />
+        <ActionButton kind="export" running={running} busy={false} onClick={onExport} />
       </div>
 
       <div className="flex min-w-0 items-center gap-2">

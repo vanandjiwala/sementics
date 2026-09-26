@@ -18,11 +18,15 @@ import { NODE_CATALOG_BY_KIND } from './data/nodeCatalog';
 import DataPreview from './components/DataPreview';
 import { buildStatements, quoteIdent, quoteStr } from './lib/pipeline';
 import { buildLineage, traceToSources } from './lib/lineage';
+import { parseWorkflow, serializeWorkflow } from './lib/workflowFile';
 
 const nodeTypes = { workflowNode: WorkflowNode };
 const PREVIEW_ROWS = 10;
 // ponytail: "Show all" is capped to keep IPC and the DOM responsive; add paging if 10k isn't enough.
 const PREVIEW_MAX_ROWS = 10000;
+// Also spread into edges loaded from a file: ReactFlow only applies these to edges created by connecting.
+const defaultEdgeOptions = { markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' } };
+const baseName = (filePath) => filePath.split(/[\\/]/).pop();
 
 let nodeIdCounter = 0;
 function nextNodeId() {
@@ -42,7 +46,7 @@ function Flow() {
   const [lineage, setLineage] = useState(null);
   const [preview, setPreview] = useState(null);
   const wrapperRef = useRef(null);
-  const { screenToFlowPosition, fitView } = useReactFlow();
+  const { screenToFlowPosition, fitView, getViewport, setViewport } = useReactFlow();
 
   // A graph edit makes the last lineage and result stale.
   const invalidate = useCallback(() => {
@@ -172,6 +176,45 @@ function Flow() {
       .map((s) => `${nameOf(s.nodeId)}.${s.column}`),
   }));
 
+  // Export never touches graph state, so the canvas stays exactly as it was.
+  const onExport = async () => {
+    let result;
+    try {
+      result = await window.sementics.saveWorkflow(serializeWorkflow(nodes, edges, getViewport()));
+    } catch (err) {
+      result = { ok: false, message: err.message };
+    }
+    if (result.canceled) return;
+    setLastResult({ mode: 'export', ok: result.ok, name: result.ok && baseName(result.filePath), message: result.message });
+  };
+
+  const onOpen = async () => {
+    if (nodes.length && !window.confirm('Replace the current workflow?')) return;
+    let result;
+    let workflow;
+    try {
+      result = await window.sementics.openWorkflow();
+      if (result.ok) workflow = parseWorkflow(result.json, NODE_CATALOG_BY_KIND);
+    } catch (err) {
+      result = { ok: false, message: err.message };
+    }
+    if (result.canceled) return;
+    if (!workflow) {
+      setLastResult({ mode: 'open', ok: false, message: result.message });
+      return;
+    }
+    // New drops must not reuse a loaded node id.
+    for (const n of workflow.nodes) nodeIdCounter = Math.max(nodeIdCounter, Number(/^node-(\d+)$/.exec(n.id)?.[1] ?? 0));
+    invalidate();
+    setPreview(null);
+    setWorkflowStatus('idle');
+    setNodes(workflow.nodes.map((n) => ({ ...n, type: 'workflowNode', data: { ...n.data, status: 'idle', onRun } })));
+    setEdges(workflow.edges.map((e) => ({ ...defaultEdgeOptions, ...e })));
+    if (workflow.viewport) setViewport(workflow.viewport);
+    else requestAnimationFrame(() => fitView());
+    setLastResult({ mode: 'open', ok: true, name: baseName(result.filePath) });
+  };
+
   const onDragOver = useCallback((event) => {
     event.preventDefault();
     event.dataTransfer.dropEffect = 'move';
@@ -210,6 +253,8 @@ function Flow() {
         lastResult={lastResult}
         onRunAll={() => execute()}
         onDryRun={() => execute(undefined, { dryRun: true })}
+        onExport={onExport}
+        onOpen={onOpen}
         onFocusNode={focusNode}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
@@ -241,7 +286,7 @@ function Flow() {
                 onConnect={onConnect}
                 onDrop={onDrop}
                 onDragOver={onDragOver}
-                defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' } }}
+                defaultEdgeOptions={defaultEdgeOptions}
                 deleteKeyCode={['Backspace', 'Delete']}
                 fitView
               >

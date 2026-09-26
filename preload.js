@@ -5,4 +5,6 @@ contextBridge.exposeInMainWorld('sementics', {
   dryRun: (statements, views) => ipcRenderer.invoke('duckdb:dryRun', statements, views),
   openCsv: () => ipcRenderer.invoke('dialog:openCsv'),
   saveCsv: () => ipcRenderer.invoke('dialog:saveCsv'),
+  saveWorkflow: (json) => ipcRenderer.invoke('workflow:save', json),
+  openWorkflow: () => ipcRenderer.invoke('workflow:open'),
 });

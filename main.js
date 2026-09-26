@@ -1,6 +1,17 @@
 const { app, BrowserWindow, dialog, ipcMain, session, shell } = require('electron');
+const fs = require('fs/promises');
 const path = require('path');
+const { pathToFileURL } = require('url');
 const duckdb = require('duckdb');
+
+const devServerUrl = process.env.ELECTRON_RENDERER_URL;
+const appPageUrl = pathToFileURL(path.join(__dirname, 'dist-renderer/index.html')).href;
+
+// Privileged IPC must come from our own page, not some other frame or navigated-to URL.
+const isAppFrame = (event) => {
+  const url = event.senderFrame?.url ?? '';
+  return devServerUrl ? url.startsWith(devServerUrl) : url === appPageUrl;
+};
 
 const isStatements = (statements) =>
   Array.isArray(statements) && statements.every((s) => s && typeof s.nodeId === 'string' && typeof s.sql === 'string');
@@ -93,6 +104,38 @@ ipcMain.handle('dialog:saveCsv', async (event) => {
   return canceled ? null : filePath;
 });
 
+const WORKFLOW_FILTERS = [{ name: 'Sementics workflow', extensions: ['json'] }];
+
+ipcMain.handle('workflow:save', async (event, json) => {
+  if (!isAppFrame(event) || typeof json !== 'string') return { ok: false, message: 'Invalid request' };
+  const { canceled, filePath } = await dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender), {
+    defaultPath: path.join(app.getPath('documents'), 'workflow.json'),
+    filters: WORKFLOW_FILTERS,
+  });
+  if (canceled || !filePath) return { ok: false, canceled: true };
+  try {
+    await fs.writeFile(filePath, json, 'utf8');
+    return { ok: true, filePath };
+  } catch (err) {
+    return { ok: false, message: err.message };
+  }
+});
+
+// Only reads the file; the renderer parses and validates it.
+ipcMain.handle('workflow:open', async (event) => {
+  if (!isAppFrame(event)) return { ok: false, message: 'Invalid request' };
+  const { canceled, filePaths } = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
+    properties: ['openFile'],
+    filters: WORKFLOW_FILTERS,
+  });
+  if (canceled || !filePaths.length) return { ok: false, canceled: true };
+  try {
+    return { ok: true, json: await fs.readFile(filePaths[0], 'utf8'), filePath: filePaths[0] };
+  } catch (err) {
+    return { ok: false, message: err.message };
+  }
+});
+
 function createWindow() {
   const win = new BrowserWindow({
     width: 900,
@@ -112,7 +155,6 @@ function createWindow() {
     return { action: 'deny' };
   });
 
-  const devServerUrl = process.env.ELECTRON_RENDERER_URL;
   if (devServerUrl) {
     win.loadURL(devServerUrl);
   } else {
