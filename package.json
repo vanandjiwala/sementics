@@ -1,10 +1,10 @@
 {
   "name": "sementics",
   "version": "1.0.0",
-  "description": "Sementics desktop app",
+  "description": "Visual data-workflow editor powered by DuckDB",
   "private": true,
   "author": "Vasav Anandjiwala",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "main": "main.js",
   "scripts": {
     "dev": "concurrently -k \"vite\" \"wait-on tcp:5173 && ELECTRON_RENDERER_URL=http://localhost:5173 electron .\"",
