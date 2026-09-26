@@ -13,10 +13,11 @@ import ReactFlow, {
 import NodeConfigPanel from './components/NodeConfigPanel';
 import NodePalette from './components/NodePalette';
 import TopBar from './components/TopBar';
-import WorkflowNode from './components/WorkflowNode';
+import WorkflowNode, { LineageContext } from './components/WorkflowNode';
 import { NODE_CATALOG_BY_KIND } from './data/nodeCatalog';
 import DataPreview from './components/DataPreview';
 import { buildStatements, quoteIdent, quoteStr } from './lib/pipeline';
+import { buildLineage, traceToSources } from './lib/lineage';
 
 const nodeTypes = { workflowNode: WorkflowNode };
 const PREVIEW_ROWS = 10;
@@ -34,13 +35,35 @@ function Flow() {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [workflowStatus, setWorkflowStatus] = useState('idle');
+  const [workflowMode, setWorkflowMode] = useState('run');
+  // Outcome of the last run/dry run, shown in the top bar: { mode, ok, count, nodeId?, name? }.
+  const [lastResult, setLastResult] = useState(null);
+  // Column-level lineage from the last successful dry run; cleared on any graph edit.
+  const [lineage, setLineage] = useState(null);
   const [preview, setPreview] = useState(null);
   const wrapperRef = useRef(null);
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, fitView } = useReactFlow();
+
+  // A graph edit makes the last lineage and result stale.
+  const invalidate = useCallback(() => {
+    setLineage(null);
+    setLastResult(null);
+  }, []);
+
+  const focusNode = useCallback(
+    (id) => {
+      setNodes((nds) => nds.map((n) => ({ ...n, selected: n.id === id })));
+      fitView({ nodes: [{ id }], duration: 300, maxZoom: 1 });
+    },
+    [setNodes, fitView],
+  );
 
   const onConnect = useCallback(
-    (params) => setEdges((eds) => addEdge(params, eds)),
-    [setEdges],
+    (params) => {
+      invalidate();
+      setEdges((eds) => addEdge(params, eds));
+    },
+    [setEdges, invalidate],
   );
 
   // Nodes hold data.onRun from creation time, so route it through a ref to always see current state.
@@ -60,18 +83,25 @@ function Flow() {
   );
 
   const execute = useCallback(
-    async (targetId, { limit = PREVIEW_ROWS, exportPath } = {}) => {
+    async (targetId, { limit = PREVIEW_ROWS, exportPath, dryRun = false } = {}) => {
       if (workflowStatus === 'running') return;
+      const mode = dryRun ? 'dryRun' : 'run';
+      const nameOf = (id) => nodes.find((n) => n.id === id)?.data.name;
+      setWorkflowMode(mode);
+      setLastResult(null);
+      if (dryRun) setLineage(null);
       let statements;
       try {
-        statements = buildStatements(nodes, edges, targetId);
+        statements = buildStatements(nodes, edges, targetId, { dryRun });
       } catch (err) {
         setStatuses({ [err.nodeId]: 'error' }, { [err.nodeId]: err.message });
         setWorkflowStatus('error');
+        setLastResult({ mode, ok: false, nodeId: err.nodeId, name: nameOf(err.nodeId) });
         return;
       }
       const target = targetId && nodes.find((n) => n.id === targetId);
-      const previewable = target && NODE_CATALOG_BY_KIND[target.data.kind].category !== 'output';
+      // A dry run never reads rows, so no preview or export.
+      const previewable = !dryRun && target && NODE_CATALOG_BY_KIND[target.data.kind].category !== 'output';
       let previewSql;
       if (previewable && exportPath) {
         statements.push({
@@ -87,10 +117,19 @@ function Flow() {
 
       let result;
       try {
-        result = await window.sementics.runStatements(statements, previewSql);
+        if (dryRun) {
+          const views = statements
+            .map((s) => nodes.find((n) => n.id === s.nodeId))
+            .filter((n) => NODE_CATALOG_BY_KIND[n.data.kind].category !== 'output')
+            .map((n) => ({ nodeId: n.id, name: n.data.name }));
+          result = await window.sementics.dryRun(statements, views);
+        } else {
+          result = await window.sementics.runStatements(statements, previewSql);
+        }
       } catch (err) {
         result = { ok: false, nodeId: ids[0], message: err.message };
       }
+      if (result.schemas) setLineage(buildLineage(nodes, edges, result.schemas));
       if (result.preview) setPreview({ nodeId: targetId, name: target.data.name, limit, ...result.preview });
       else if (!result.ok) setPreview(null);
       const failedAt = result.ok ? ids.length : ids.indexOf(result.nodeId);
@@ -99,15 +138,22 @@ function Flow() {
         result.ok ? {} : { [result.nodeId]: result.message },
       );
       setWorkflowStatus(result.ok ? 'success' : 'error');
+      setLastResult(
+        result.ok
+          ? { mode, ok: true, count: ids.length }
+          : { mode, ok: false, nodeId: result.nodeId, name: nameOf(result.nodeId) },
+      );
     },
     [workflowStatus, nodes, edges, setStatuses],
   );
   executeRef.current = execute;
 
   const updateNodeData = useCallback(
-    (id, patch) =>
-      setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch(n.data) } } : n))),
-    [setNodes],
+    (id, patch) => {
+      invalidate();
+      setNodes((nds) => nds.map((n) => (n.id === id ? { ...n, data: { ...n.data, ...patch(n.data) } } : n)));
+    },
+    [setNodes, invalidate],
   );
 
   const selected = nodes.filter((n) => n.selected);
@@ -118,6 +164,13 @@ function Flow() {
         .map((e) => nodes.find((n) => n.id === e.source)?.data.name)
         .filter(Boolean)
     : [];
+  const nameOf = (id) => nodes.find((n) => n.id === id)?.data.name;
+  const selectedColumns = selectedNode && lineage?.[selectedNode.id]?.map((c) => ({
+    ...c,
+    sources: traceToSources(lineage, selectedNode.id, c.name)
+      ?.filter((s) => s.nodeId !== selectedNode.id)
+      .map((s) => `${nameOf(s.nodeId)}.${s.column}`),
+  }));
 
   const onDragOver = useCallback((event) => {
     event.preventDefault();
@@ -152,8 +205,12 @@ function Flow() {
   return (
     <div className="flex h-screen w-screen flex-col bg-background text-foreground">
       <TopBar
-        status={workflowStatus}
+        running={workflowStatus === 'running'}
+        mode={workflowMode}
+        lastResult={lastResult}
         onRunAll={() => execute()}
+        onDryRun={() => execute(undefined, { dryRun: true })}
+        onFocusNode={focusNode}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
       />
@@ -168,28 +225,36 @@ function Flow() {
                 </p>
               </div>
             )}
-            <ReactFlow
-              nodes={nodes}
-              edges={edges}
-              nodeTypes={nodeTypes}
-              onNodesChange={onNodesChange}
-              onEdgesChange={onEdgesChange}
-              onConnect={onConnect}
-              onDrop={onDrop}
-              onDragOver={onDragOver}
-              defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' } }}
-              deleteKeyCode={['Backspace', 'Delete']}
-              fitView
-            >
-              <Background color="#334155" />
-              <Controls />
-              <MiniMap
-                style={{ backgroundColor: '#1b2336' }}
-                maskColor="rgba(15, 23, 42, 0.6)"
-                nodeColor={(n) => n.data?.kind && NODE_CATALOG_BY_KIND[n.data.kind]?.accent}
-                nodeStrokeColor="#475569"
-              />
-            </ReactFlow>
+            <LineageContext.Provider value={lineage}>
+              <ReactFlow
+                nodes={nodes}
+                edges={edges}
+                nodeTypes={nodeTypes}
+                onNodesChange={(changes) => {
+                  if (changes.some((c) => c.type === 'remove')) invalidate();
+                  onNodesChange(changes);
+                }}
+                onEdgesChange={(changes) => {
+                  if (changes.some((c) => c.type === 'remove')) invalidate();
+                  onEdgesChange(changes);
+                }}
+                onConnect={onConnect}
+                onDrop={onDrop}
+                onDragOver={onDragOver}
+                defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' } }}
+                deleteKeyCode={['Backspace', 'Delete']}
+                fitView
+              >
+                <Background color="#334155" />
+                <Controls />
+                <MiniMap
+                  style={{ backgroundColor: '#1b2336' }}
+                  maskColor="rgba(15, 23, 42, 0.6)"
+                  nodeColor={(n) => n.data?.kind && NODE_CATALOG_BY_KIND[n.data.kind]?.accent}
+                  nodeStrokeColor="#475569"
+                />
+              </ReactFlow>
+            </LineageContext.Provider>
           </div>
           {preview && (
             <DataPreview
@@ -210,6 +275,7 @@ function Flow() {
             key={selectedNode.id}
             node={selectedNode}
             inputNames={selectedInputNames}
+            columns={selectedColumns}
             onNameChange={(name) => updateNodeData(selectedNode.id, () => ({ name }))}
             onConfigChange={(key, value) =>
               updateNodeData(selectedNode.id, (d) => ({ config: { ...d.config, [key]: value } }))

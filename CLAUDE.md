@@ -16,15 +16,16 @@ No test runner or linter is configured.
 Electron shell + React/ReactFlow renderer for a visual data-workflow editor ("Sementics").
 
 - **Main process** (`main.js`, CommonJS): creates the window with `contextIsolation`, `sandbox`, no `nodeIntegration`. Loads the dev server URL if `ELECTRON_RENDERER_URL` is set, else `dist-renderer/index.html`. When packaged, injects a strict CSP (`default-src 'self'`) — any remote resource the renderer loads (e.g. the Google Fonts `@import` in `src/index.css`) is blocked in packaged builds.
-- **Preload** (`preload.js`): exposes `window.sementics` via `contextBridge`. Each method wraps one `ipcRenderer.invoke` channel handled by `ipcMain.handle` in `main.js`: `runStatements` → `duckdb:run`, `openCsv` → `dialog:openCsv`, `saveCsv` → `dialog:saveCsv`. The renderer has no Node access; all Node-side work goes through here.
+- **Preload** (`preload.js`): exposes `window.sementics` via `contextBridge`. Each method wraps one `ipcRenderer.invoke` channel handled by `ipcMain.handle` in `main.js`: `runStatements` → `duckdb:run`, `dryRun` → `duckdb:dryRun`, `openCsv` → `dialog:openCsv`, `saveCsv` → `dialog:saveCsv`. The renderer has no Node access; all Node-side work goes through here.
 - **Renderer** (`src/`, ESM, Vite root is `src/`, `base: './'` so it works from `file://`):
   - `App.jsx` owns all workflow state (`useNodesState`/`useEdgesState`). Every node uses the single custom type `workflowNode`; its variant is `data.kind`.
   - `data/nodeCatalog.js` is the registry of node kinds (label, description, icon, accent color). Adding a node type = adding an entry here; the palette, node rendering, and minimap colors all read from it.
   - Palette → canvas drag-and-drop passes the node `kind` via the `application/reactflow` dataTransfer key (`NodePalette.jsx` sets it, `App.jsx#onDrop` reads it).
   - Execution: `lib/pipeline.js#buildStatements` compiles the graph (topologically, up to an optional target node) into `{ nodeId, sql }` statements; `App.jsx#execute` sends them to `duckdb:run`, which runs them in a fresh in-memory DuckDB and returns `{ ok }` or `{ ok: false, nodeId, message }`. Node statuses (`idle`/`running`/`success`/`error`) are derived from that. Nodes trigger it via `data.onRun`. Self-check: `node src/lib/pipeline.check.mjs`.
+  - Dry run: `buildStatements(..., { dryRun: true })` turns outputs into `EXPLAIN COPY …`; views are lazy, so nothing reads rows (only `read_csv` sniffs headers). `duckdb:dryRun` binds the statements and returns `DESCRIBE` schemas per view; `lib/lineage.js#buildLineage` turns those into column-level lineage via `sqlingo`'s `lineage()` (pass the `DuckDB` dialect class from `sqlingo/duckdb` — the `'duckdb'` string isn't registered). Lineage lives in `App.jsx` state, reaches nodes through `LineageContext`, and is cleared on any graph edit. Self-check: `node src/lib/lineage.check.mjs`.
 - **Styling**: Tailwind v4 via `@tailwindcss/vite`; design tokens live in the `@theme` block in `src/index.css` (use `bg-card`, `text-muted-foreground`, etc.). ReactFlow default styles are overridden in the same file.
 
-`sqlingo` is installed but not yet used. Of the project's own files, only `main.js`, `preload.js`, and `dist-renderer/` go into the packaged app (`build.files` in `package.json`), so new main-process files must be added there.
+Of the project's own files, only `main.js`, `preload.js`, and `dist-renderer/` go into the packaged app (`build.files` in `package.json`), so new main-process files must be added there.
 
 ## Electron rules
 

@@ -1,26 +1,96 @@
 import React from 'react';
-import { Play, Spinner, CheckCircle, SidebarSimple, WarningCircle } from '@phosphor-icons/react';
+import { Play, Spinner, CheckCircle, SidebarSimple, WarningCircle, ListChecks } from '@phosphor-icons/react';
 
-const STATUS_ICON = {
-  idle: Play,
-  running: Spinner,
-  success: CheckCircle,
-  error: WarningCircle,
+const ACTIONS = {
+  dryRun: {
+    label: 'Dry Run',
+    icon: ListChecks,
+    title: 'Validate SQL and lineage without loading data',
+    className: 'border border-border text-foreground hover:bg-muted',
+  },
+  run: {
+    label: 'Run Workflow',
+    icon: Play,
+    title: 'Run the workflow and write outputs',
+    className: 'border border-transparent bg-accent text-accent-foreground hover:opacity-90',
+  },
 };
 
-const STATUS_LABEL = {
-  idle: 'Run Workflow',
-  running: 'Running…',
-  success: 'Done',
-  error: 'Failed — Retry',
-};
+// Labels never change; only the icon of the button that started the job becomes a spinner.
+function ActionButton({ kind, running, busy, onClick }) {
+  const { label, icon, title, className } = ACTIONS[kind];
+  const Icon = busy ? Spinner : icon;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={running}
+      aria-busy={busy}
+      title={title}
+      className={`flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
+    >
+      <Icon size={16} className={busy ? 'animate-spin' : undefined} aria-hidden />
+      {label}
+    </button>
+  );
+}
 
-export default function TopBar({ status, onRunAll, sidebarOpen, onToggleSidebar }) {
-  const StatusIcon = STATUS_ICON[status];
+function statusOf(running, mode, lastResult) {
+  if (running) {
+    return { icon: Spinner, spin: true, text: mode === 'dryRun' ? 'Validating…' : 'Running…', tone: 'text-muted-foreground' };
+  }
+  if (!lastResult) return null;
+  const { mode: m, ok, count, name } = lastResult;
+  if (ok) {
+    const text = `${m === 'dryRun' ? 'Dry run passed' : 'Run complete'} · ${count} node${count === 1 ? '' : 's'}`;
+    return { icon: CheckCircle, text, tone: 'text-accent' };
+  }
+  const what = m === 'dryRun' ? 'Dry run' : 'Run';
+  return { icon: WarningCircle, text: name ? `${what} failed at ${name}` : `${what} failed`, tone: 'text-destructive' };
+}
+
+// Persistent status indicator, separate from the action buttons; announced politely to screen readers.
+function StatusPill({ running, mode, lastResult, onFocusNode }) {
+  const status = statusOf(running, mode, lastResult);
+  const failedNodeId = !running && lastResult && !lastResult.ok ? lastResult.nodeId : null;
+  const pillClass = `flex max-w-80 items-center gap-1.5 rounded-full border border-border px-2.5 py-1 font-mono text-xs ${status?.tone ?? ''}`;
+  const content = status && (
+    <>
+      <status.icon
+        size={14}
+        weight={status.spin ? 'regular' : 'fill'}
+        className={`shrink-0 ${status.spin ? 'animate-spin' : ''}`}
+        aria-hidden
+      />
+      <span className="truncate">{status.text}</span>
+    </>
+  );
 
   return (
-    <header className="flex h-14 shrink-0 items-center justify-between border-b border-border bg-card px-3">
-      <div className="flex items-center gap-2">
+    <div role="status" aria-live="polite" className="flex min-w-0 items-center">
+      {status &&
+        (failedNodeId ? (
+          <button
+            type="button"
+            onClick={() => onFocusNode(failedNodeId)}
+            title={`${status.text} — show node`}
+            className={`${pillClass} transition-colors hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring`}
+          >
+            {content}
+          </button>
+        ) : (
+          <span title={status.text} className={pillClass}>
+            {content}
+          </span>
+        ))}
+    </div>
+  );
+}
+
+export default function TopBar({ running, mode, lastResult, onRunAll, onDryRun, onFocusNode, sidebarOpen, onToggleSidebar }) {
+  return (
+    <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-3">
+      <div className="flex shrink-0 items-center gap-2">
         <button
           type="button"
           onClick={onToggleSidebar}
@@ -32,15 +102,11 @@ export default function TopBar({ status, onRunAll, sidebarOpen, onToggleSidebar 
         <span className="font-mono text-sm font-semibold">Sementics</span>
       </div>
 
-      <button
-        type="button"
-        onClick={onRunAll}
-        disabled={status === 'running'}
-        className="flex items-center gap-2 rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-accent-foreground transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
-      >
-        <StatusIcon size={16} weight={status === 'success' ? 'fill' : 'regular'} className={status === 'running' ? 'animate-spin' : undefined} />
-        {STATUS_LABEL[status]}
-      </button>
+      <div className="flex min-w-0 items-center gap-2">
+        <StatusPill running={running} mode={mode} lastResult={lastResult} onFocusNode={onFocusNode} />
+        <ActionButton kind="dryRun" running={running} busy={running && mode === 'dryRun'} onClick={onDryRun} />
+        <ActionButton kind="run" running={running} busy={running && mode === 'run'} onClick={onRunAll} />
+      </div>
     </header>
   );
 }

@@ -30,7 +30,7 @@ export function formatOpts(params, values = {}, sep, skipKeys = []) {
   return parts;
 }
 
-function nodeSql(node, inputs) {
+function nodeSql(node, inputs, dryRun) {
   const { kind, name, config = {} } = node.data;
   const entry = NODE_CATALOG_BY_KIND[kind];
   for (const p of entry.params) {
@@ -46,14 +46,17 @@ function nodeSql(node, inputs) {
   if (kind === 'csvOutput') {
     if (inputs.length !== 1) throw new Error('Connect exactly one input');
     const opts = formatOpts(entry.params, config, ' ', ['path']);
-    return `COPY (SELECT * FROM ${quoteIdent(inputs[0].data.name)}) TO ${quoteStr(config.path)} (${['FORMAT csv', ...opts].join(', ')})`;
+    const copy = `COPY (SELECT * FROM ${quoteIdent(inputs[0].data.name)}) TO ${quoteStr(config.path)} (${['FORMAT csv', ...opts].join(', ')})`;
+    // EXPLAIN binds the query and validates COPY options without writing the file.
+    return dryRun ? `EXPLAIN ${copy}` : copy;
   }
   throw new Error(`Unknown node kind "${kind}"`);
 }
 
 // Compile the graph into [{ nodeId, sql }] in dependency order.
 // With targetId, only that node and its ancestors are included.
-export function buildStatements(nodes, edges, targetId) {
+// With dryRun, outputs are only validated (views are lazy, so nothing else reads data either).
+export function buildStatements(nodes, edges, targetId, { dryRun = false } = {}) {
   const byId = new Map(nodes.map((n) => [n.id, n]));
   const liveEdges = edges.filter((e) => byId.has(e.source) && byId.has(e.target));
 
@@ -105,7 +108,7 @@ export function buildStatements(nodes, edges, targetId) {
   return order.map((id) => {
     const inputs = sub.filter((e) => e.target === id).map((e) => byId.get(e.source));
     try {
-      return { nodeId: id, sql: nodeSql(byId.get(id), inputs) };
+      return { nodeId: id, sql: nodeSql(byId.get(id), inputs, dryRun) };
     } catch (err) {
       throw new PipelineError(id, err.message);
     }

@@ -2,24 +2,32 @@ const { app, BrowserWindow, dialog, ipcMain, session, shell } = require('electro
 const path = require('path');
 const duckdb = require('duckdb');
 
+const isStatements = (statements) =>
+  Array.isArray(statements) && statements.every((s) => s && typeof s.nodeId === 'string' && typeof s.sql === 'string');
+
+// Run statements in order; return the first failure as { ok: false, nodeId, message }, else null.
+async function execStatements(db, statements) {
+  for (const { nodeId, sql } of statements) {
+    try {
+      await new Promise((resolve, reject) => db.exec(sql, (err) => (err ? reject(err) : resolve())));
+    } catch (err) {
+      return { ok: false, nodeId, message: err.message };
+    }
+  }
+  return null;
+}
+
 // Run compiled workflow statements in a fresh in-memory DB; report the first failing node.
 // With previewSql, also run that query afterwards and return its rows.
 ipcMain.handle('duckdb:run', async (_event, statements, previewSql) => {
-  const valid =
-    Array.isArray(statements) &&
-    statements.every((s) => s && typeof s.nodeId === 'string' && typeof s.sql === 'string') &&
-    (previewSql === undefined || typeof previewSql === 'string');
-  if (!valid) return { ok: false, message: 'Invalid request' };
+  if (!isStatements(statements) || (previewSql !== undefined && typeof previewSql !== 'string')) {
+    return { ok: false, message: 'Invalid request' };
+  }
 
   const db = new duckdb.Database(':memory:');
   try {
-    for (const { nodeId, sql } of statements) {
-      try {
-        await new Promise((resolve, reject) => db.exec(sql, (err) => (err ? reject(err) : resolve())));
-      } catch (err) {
-        return { ok: false, nodeId, message: err.message };
-      }
-    }
+    const failed = await execStatements(db, statements);
+    if (failed) return failed;
     if (previewSql === undefined) return { ok: true };
 
     let stmt;
@@ -34,6 +42,35 @@ ipcMain.handle('duckdb:run', async (_event, statements, previewSql) => {
     } finally {
       stmt?.finalize();
     }
+  } finally {
+    db.close();
+  }
+});
+
+// Bind dry-run statements (views + EXPLAINed outputs) without reading data, then DESCRIBE each view.
+ipcMain.handle('duckdb:dryRun', async (_event, statements, views) => {
+  const valid =
+    isStatements(statements) &&
+    Array.isArray(views) &&
+    views.every((v) => v && typeof v.nodeId === 'string' && typeof v.name === 'string');
+  if (!valid) return { ok: false, message: 'Invalid request' };
+
+  const db = new duckdb.Database(':memory:');
+  try {
+    const failed = await execStatements(db, statements);
+    if (failed) return failed;
+    const schemas = {};
+    for (const { nodeId, name } of views) {
+      try {
+        const rows = await new Promise((resolve, reject) =>
+          db.all(`DESCRIBE "${name.replaceAll('"', '""')}"`, (err, res) => (err ? reject(err) : resolve(res))),
+        );
+        schemas[nodeId] = rows.map((r) => ({ name: r.column_name, type: r.column_type }));
+      } catch (err) {
+        return { ok: false, nodeId, message: err.message };
+      }
+    }
+    return { ok: true, schemas };
   } finally {
     db.close();
   }

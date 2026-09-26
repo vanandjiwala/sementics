@@ -73,7 +73,7 @@ function Row({ param, config, onConfigChange }) {
   );
 }
 
-export default function NodeConfigPanel({ node, inputNames, onNameChange, onConfigChange }) {
+export default function NodeConfigPanel({ node, inputNames, columns, onNameChange, onConfigChange }) {
   const entry = NODE_CATALOG_BY_KIND[node.data.kind];
   const config = node.data.config ?? {};
   const required = entry.params.filter((p) => p.required);
@@ -106,6 +106,22 @@ export default function NodeConfigPanel({ node, inputNames, onNameChange, onConf
               ))}
             </div>
           </details>
+        )}
+        {columns && (
+          <section className="flex flex-col gap-1">
+            <h3 className="pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Columns</h3>
+            {columns.map((c) => (
+              <div key={c.name} className="flex flex-col border-b border-border pb-1 text-xs last:border-b-0">
+                <div className="flex justify-between gap-2">
+                  <span className="truncate text-foreground">{c.name}</span>
+                  <span className="shrink-0 text-muted-foreground">{c.type}</span>
+                </div>
+                {(c.sources === null || c.sources.length > 0) && (
+                  <span className="break-words text-muted-foreground">← {c.sources?.join(', ') ?? 'unknown'}</span>
+                )}
+              </div>
+            ))}
+          </section>
         )}
       </div>
     </aside>

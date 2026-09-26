@@ -1,7 +1,10 @@
-import React from 'react';
+import React, { createContext, useContext } from 'react';
 import { Handle, Position, useReactFlow } from 'reactflow';
 import { Play, Spinner, CheckCircle, Trash, WarningCircle } from '@phosphor-icons/react';
 import { NODE_CATALOG_BY_KIND } from '../data/nodeCatalog';
+
+// Column lineage from the last dry run (App.jsx), keyed by node id.
+export const LineageContext = createContext(null);
 
 const STATUS_ICON = {
   idle: Play,
@@ -19,6 +22,7 @@ function summary({ kind, config = {} }) {
 
 export default function WorkflowNode({ id, data, selected }) {
   const { deleteElements } = useReactFlow();
+  const columns = useContext(LineageContext)?.[id];
   const status = data.status ?? 'idle';
   const catalogEntry = NODE_CATALOG_BY_KIND[data.kind];
   const Icon = catalogEntry.icon;
@@ -64,6 +68,7 @@ export default function WorkflowNode({ id, data, selected }) {
       <div className="flex max-w-64 flex-col gap-1 px-3 py-2 text-xs">
         <span className="text-foreground">{data.name}</span>
         <span className="truncate text-muted-foreground">{summary(data) || catalogEntry.description}</span>
+        {columns && <span className="text-muted-foreground">{columns.length} cols</span>}
         {data.error && <span className="whitespace-pre-wrap break-words text-destructive">{data.error}</span>}
       </div>
       {catalogEntry.category !== 'output' && <Handle type="source" position={Position.Right} />}

@@ -19,6 +19,12 @@ assert.equal(
 assert.equal(stmts[1].sql, 'CREATE VIEW "sql_2" AS SELECT * FROM csv_1');
 assert.equal(stmts[2].sql, `COPY (SELECT * FROM "sql_2") TO '/tmp/out.csv' (FORMAT csv, header false)`);
 
+// Dry run only EXPLAINs outputs.
+assert.equal(
+  buildStatements([out, sql, src], [edge('b', 'c'), edge('a', 'b')], undefined, { dryRun: true })[2].sql,
+  `EXPLAIN ${stmts[2].sql}`,
+);
+
 // targetId limits to ancestors.
 assert.deepEqual(buildStatements([src, sql, out], [edge('a', 'b'), edge('b', 'c')], 'b').map((s) => s.nodeId), ['a', 'b']);
 
