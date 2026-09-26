@@ -33,3 +33,8 @@ body {
 .react-flow__controls-button:hover {
   background: var(--color-muted);
 }
+
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--color-accent);
+  stroke-width: 2;
+}

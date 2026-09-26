@@ -111,6 +111,7 @@ function Flow() {
             onDrop={onDrop}
             onDragOver={onDragOver}
             defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' } }}
+            deleteKeyCode={['Backspace', 'Delete']}
             fitView
           >
             <Background color="#334155" />
