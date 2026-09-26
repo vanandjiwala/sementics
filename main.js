@@ -3,7 +3,14 @@ const path = require('path');
 const duckdb = require('duckdb');
 
 // Run compiled workflow statements in a fresh in-memory DB; report the first failing node.
-ipcMain.handle('duckdb:run', async (_event, statements) => {
+// With previewSql, also run that query afterwards and return its rows.
+ipcMain.handle('duckdb:run', async (_event, statements, previewSql) => {
+  const valid =
+    Array.isArray(statements) &&
+    statements.every((s) => s && typeof s.nodeId === 'string' && typeof s.sql === 'string') &&
+    (previewSql === undefined || typeof previewSql === 'string');
+  if (!valid) return { ok: false, message: 'Invalid request' };
+
   const db = new duckdb.Database(':memory:');
   try {
     for (const { nodeId, sql } of statements) {
@@ -13,7 +20,20 @@ ipcMain.handle('duckdb:run', async (_event, statements) => {
         return { ok: false, nodeId, message: err.message };
       }
     }
-    return { ok: true };
+    if (previewSql === undefined) return { ok: true };
+
+    let stmt;
+    try {
+      stmt = db.prepare(previewSql);
+      const rows = await new Promise((resolve, reject) => stmt.all((err, res) => (err ? reject(err) : resolve(res))));
+      // columns() is only populated after execution; it still lists headers when there are 0 rows.
+      const columns = (stmt.columns() ?? []).map((c) => c.name);
+      return { ok: true, preview: { columns, rows: rows.map((r) => columns.map((c) => r[c])) } };
+    } catch (err) {
+      return { ok: false, nodeId: statements.at(-1)?.nodeId, message: err.message };
+    } finally {
+      stmt?.finalize();
+    }
   } finally {
     db.close();
   }

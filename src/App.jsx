@@ -15,9 +15,13 @@ import NodePalette from './components/NodePalette';
 import TopBar from './components/TopBar';
 import WorkflowNode from './components/WorkflowNode';
 import { NODE_CATALOG_BY_KIND } from './data/nodeCatalog';
-import { buildStatements } from './lib/pipeline';
+import DataPreview from './components/DataPreview';
+import { buildStatements, quoteIdent, quoteStr } from './lib/pipeline';
 
 const nodeTypes = { workflowNode: WorkflowNode };
+const PREVIEW_ROWS = 10;
+// ponytail: "Show all" is capped to keep IPC and the DOM responsive; add paging if 10k isn't enough.
+const PREVIEW_MAX_ROWS = 10000;
 
 let nodeIdCounter = 0;
 function nextNodeId() {
@@ -30,6 +34,7 @@ function Flow() {
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [workflowStatus, setWorkflowStatus] = useState('idle');
+  const [preview, setPreview] = useState(null);
   const wrapperRef = useRef(null);
   const { screenToFlowPosition } = useReactFlow();
 
@@ -55,7 +60,7 @@ function Flow() {
   );
 
   const execute = useCallback(
-    async (targetId) => {
+    async (targetId, { limit = PREVIEW_ROWS, exportPath } = {}) => {
       if (workflowStatus === 'running') return;
       let statements;
       try {
@@ -65,16 +70,29 @@ function Flow() {
         setWorkflowStatus('error');
         return;
       }
-      const ids = statements.map((s) => s.nodeId);
+      const target = targetId && nodes.find((n) => n.id === targetId);
+      const previewable = target && NODE_CATALOG_BY_KIND[target.data.kind].category !== 'output';
+      let previewSql;
+      if (previewable && exportPath) {
+        statements.push({
+          nodeId: targetId,
+          sql: `COPY (SELECT * FROM ${quoteIdent(target.data.name)}) TO ${quoteStr(exportPath)} (FORMAT csv, HEADER)`,
+        });
+      } else if (previewable) {
+        previewSql = `SELECT * FROM ${quoteIdent(target.data.name)} LIMIT ${limit}`;
+      }
+      const ids = [...new Set(statements.map((s) => s.nodeId))];
       setStatuses(Object.fromEntries(ids.map((id) => [id, 'running'])));
       setWorkflowStatus('running');
 
       let result;
       try {
-        result = await window.sementics.runStatements(statements);
+        result = await window.sementics.runStatements(statements, previewSql);
       } catch (err) {
         result = { ok: false, nodeId: ids[0], message: err.message };
       }
+      if (result.preview) setPreview({ nodeId: targetId, name: target.data.name, limit, ...result.preview });
+      else if (!result.ok) setPreview(null);
       const failedAt = result.ok ? ids.length : ids.indexOf(result.nodeId);
       setStatuses(
         Object.fromEntries(ids.map((id, i) => [id, i < failedAt ? 'success' : i === failedAt ? 'error' : 'idle'])),
@@ -141,36 +159,51 @@ function Flow() {
       />
       <div className="flex min-h-0 flex-1">
         {sidebarOpen && <NodePalette />}
-        <div ref={wrapperRef} className="relative min-w-0 flex-1">
-          {nodes.length === 0 && (
-            <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
-              <p className="font-mono text-sm text-muted-foreground">
-                Drag a node from the left to get started
-              </p>
-            </div>
-          )}
-          <ReactFlow
-            nodes={nodes}
-            edges={edges}
-            nodeTypes={nodeTypes}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onDrop={onDrop}
-            onDragOver={onDragOver}
-            defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' } }}
-            deleteKeyCode={['Backspace', 'Delete']}
-            fitView
-          >
-            <Background color="#334155" />
-            <Controls />
-            <MiniMap
-              style={{ backgroundColor: '#1b2336' }}
-              maskColor="rgba(15, 23, 42, 0.6)"
-              nodeColor={(n) => n.data?.kind && NODE_CATALOG_BY_KIND[n.data.kind]?.accent}
-              nodeStrokeColor="#475569"
+        <div className="flex min-w-0 flex-1 flex-col">
+          <div ref={wrapperRef} className="relative min-h-0 flex-1">
+            {nodes.length === 0 && (
+              <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+                <p className="font-mono text-sm text-muted-foreground">
+                  Drag a node from the left to get started
+                </p>
+              </div>
+            )}
+            <ReactFlow
+              nodes={nodes}
+              edges={edges}
+              nodeTypes={nodeTypes}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              onDrop={onDrop}
+              onDragOver={onDragOver}
+              defaultEdgeOptions={{ markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' } }}
+              deleteKeyCode={['Backspace', 'Delete']}
+              fitView
+            >
+              <Background color="#334155" />
+              <Controls />
+              <MiniMap
+                style={{ backgroundColor: '#1b2336' }}
+                maskColor="rgba(15, 23, 42, 0.6)"
+                nodeColor={(n) => n.data?.kind && NODE_CATALOG_BY_KIND[n.data.kind]?.accent}
+                nodeStrokeColor="#475569"
+              />
+            </ReactFlow>
+          </div>
+          {preview && (
+            <DataPreview
+              preview={preview}
+              capped={preview.limit === PREVIEW_MAX_ROWS && preview.rows.length === PREVIEW_MAX_ROWS}
+              busy={workflowStatus === 'running'}
+              onShowAll={() => execute(preview.nodeId, { limit: PREVIEW_MAX_ROWS })}
+              onDownload={async () => {
+                const exportPath = await window.sementics.saveCsv();
+                if (exportPath) execute(preview.nodeId, { exportPath });
+              }}
+              onClose={() => setPreview(null)}
             />
-          </ReactFlow>
+          )}
         </div>
         {selectedNode && (
           <NodeConfigPanel
