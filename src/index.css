@@ -13,9 +13,35 @@
   --color-accent-foreground: #0f172a;
   --color-destructive: #ef4444;
   --color-ring: #ffffff;
+  --color-grid: #334155;
+  --color-edge: #94a3b8;
+  --color-minimap-mask: rgba(15, 23, 42, 0.6);
 
   --font-sans: 'IBM Plex Sans', system-ui, sans-serif;
   --font-mono: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+/* Dark is the default (@theme above); useTheme sets data-theme="light" to swap the tokens. */
+:root {
+  color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  --color-background: #f8fafc;
+  --color-foreground: #0f172a;
+  --color-card: #ffffff;
+  --color-card-foreground: #0f172a;
+  --color-border: #cbd5e1;
+  --color-muted: #f1f5f9;
+  --color-muted-foreground: #64748b;
+  --color-accent: #15803d;
+  --color-accent-foreground: #ffffff;
+  --color-destructive: #dc2626;
+  --color-ring: #0f172a;
+  --color-grid: #cbd5e1;
+  --color-edge: #64748b;
+  --color-minimap-mask: rgba(241, 245, 249, 0.7);
 }
 
 body {
@@ -32,6 +58,28 @@ body {
 
 .react-flow__controls-button:hover {
   background: var(--color-muted);
+}
+
+/* ReactFlow sets these as SVG attributes, which can't take var(), so theme them here. */
+.react-flow__background circle {
+  fill: var(--color-grid);
+}
+
+.react-flow__edge-path,
+.react-flow__connection-path {
+  stroke: var(--color-edge);
+}
+
+.react-flow__minimap {
+  background: var(--color-card);
+}
+
+.react-flow__minimap-mask {
+  fill: var(--color-minimap-mask);
+}
+
+.react-flow__minimap-node {
+  stroke: var(--color-border);
 }
 
 .react-flow__edge.selected .react-flow__edge-path {

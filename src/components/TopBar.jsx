@@ -1,5 +1,5 @@
 import React from 'react';
-import { Spinner, CheckCircle, SidebarSimple, WarningCircle } from '@phosphor-icons/react';
+import { Spinner, CheckCircle, SidebarSimple, WarningCircle, Sun, Moon } from '@phosphor-icons/react';
 
 function statusOf(running, mode, lastResult) {
   if (running) {
@@ -58,7 +58,7 @@ function StatusPill({ running, mode, lastResult, onFocusNode }) {
   );
 }
 
-export default function TopBar({ running, mode, lastResult, onFocusNode, sidebarOpen, onToggleSidebar }) {
+export default function TopBar({ running, mode, lastResult, onFocusNode, theme, onToggleTheme, sidebarOpen, onToggleSidebar }) {
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-3">
       <div className="flex shrink-0 items-center gap-2">
@@ -75,6 +75,15 @@ export default function TopBar({ running, mode, lastResult, onFocusNode, sidebar
 
       <div className="flex min-w-0 items-center gap-2">
         <StatusPill running={running} mode={mode} lastResult={lastResult} onFocusNode={onFocusNode} />
+        <button
+          type="button"
+          onClick={onToggleTheme}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring"
+          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+          title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+        >
+          {theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
       </div>
     </header>
   );

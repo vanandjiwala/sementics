@@ -20,13 +20,14 @@ import CanvasToolbar from './components/CanvasToolbar';
 import { buildStatements, quoteIdent, quoteStr } from './lib/pipeline';
 import { buildLineage, traceToSources } from './lib/lineage';
 import { parseWorkflow, serializeWorkflow } from './lib/workflowFile';
+import useTheme from './lib/useTheme';
 
 const nodeTypes = { workflowNode: WorkflowNode };
 const PREVIEW_ROWS = 10;
 // ponytail: "Show all" is capped to keep IPC and the DOM responsive; add paging if 10k isn't enough.
 const PREVIEW_MAX_ROWS = 10000;
 // Also spread into edges loaded from a file: ReactFlow only applies these to edges created by connecting.
-const defaultEdgeOptions = { markerEnd: { type: MarkerType.ArrowClosed, color: '#94a3b8' } };
+const defaultEdgeOptions = { markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--color-edge)' } };
 const baseName = (filePath) => filePath.split(/[\\/]/).pop();
 
 let nodeIdCounter = 0;
@@ -46,6 +47,7 @@ function Flow() {
   // Column-level lineage from the last successful dry run; cleared on any graph edit.
   const [lineage, setLineage] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [theme, toggleTheme] = useTheme();
   const wrapperRef = useRef(null);
   const { screenToFlowPosition, fitView, getViewport, setViewport } = useReactFlow();
 
@@ -262,6 +264,8 @@ function Flow() {
         mode={workflowMode}
         lastResult={lastResult}
         onFocusNode={focusNode}
+        theme={theme}
+        onToggleTheme={toggleTheme}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
       />
@@ -305,14 +309,9 @@ function Flow() {
                 deleteKeyCode={['Backspace', 'Delete']}
                 fitView
               >
-                <Background color="#334155" />
+                <Background />
                 <Controls />
-                <MiniMap
-                  style={{ backgroundColor: '#1b2336' }}
-                  maskColor="rgba(15, 23, 42, 0.6)"
-                  nodeColor={(n) => n.data?.kind && NODE_CATALOG_BY_KIND[n.data.kind]?.accent}
-                  nodeStrokeColor="#475569"
-                />
+                <MiniMap nodeColor={(n) => n.data?.kind && NODE_CATALOG_BY_KIND[n.data.kind]?.accent} />
               </ReactFlow>
             </LineageContext.Provider>
           </div>
