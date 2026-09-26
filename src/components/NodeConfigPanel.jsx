@@ -44,7 +44,7 @@ function Field({ param, value, onChange }) {
   );
   if (!param.browse) return input;
   const browse = async () => {
-    const path = await (param.browse === 'open' ? window.sementics.openCsv() : window.sementics.saveCsv());
+    const path = await (param.browse === 'open' ? window.sementics.openFile(param.fileType) : window.sementics.saveFile(param.fileType));
     if (path) onChange(path);
   };
   return (

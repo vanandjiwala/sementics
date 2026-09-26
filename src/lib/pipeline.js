@@ -36,17 +36,17 @@ function nodeSql(node, inputs, dryRun) {
   for (const p of entry.params) {
     if (p.required && !String(config[p.key] ?? '').trim()) throw new Error(`${p.label} is required`);
   }
-  if (kind === 'csvSource') {
+  if (entry.category === 'input') {
     const opts = formatOpts(entry.params, config, ' = ', ['path']);
-    return `CREATE VIEW ${quoteIdent(name)} AS SELECT * FROM read_csv(${[quoteStr(config.path), ...opts].join(', ')})`;
+    return `CREATE VIEW ${quoteIdent(name)} AS SELECT * FROM ${entry.reader}(${[quoteStr(config.path), ...opts].join(', ')})`;
   }
   if (kind === 'sql') {
     return `CREATE VIEW ${quoteIdent(name)} AS ${config.query.trim().replace(/;\s*$/, '')}`;
   }
-  if (kind === 'csvOutput') {
+  if (entry.category === 'output') {
     if (inputs.length !== 1) throw new Error('Connect exactly one input');
     const opts = formatOpts(entry.params, config, ' ', ['path']);
-    const copy = `COPY (SELECT * FROM ${quoteIdent(inputs[0].data.name)}) TO ${quoteStr(config.path)} (${['FORMAT csv', ...opts].join(', ')})`;
+    const copy = `COPY (SELECT * FROM ${quoteIdent(inputs[0].data.name)}) TO ${quoteStr(config.path)} (${[`FORMAT ${entry.format}`, ...opts].join(', ')})`;
     // EXPLAIN binds the query and validates COPY options without writing the file.
     return dryRun ? `EXPLAIN ${copy}` : copy;
   }

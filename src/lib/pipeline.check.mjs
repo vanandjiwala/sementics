@@ -25,6 +25,13 @@ assert.equal(
   `EXPLAIN ${stmts[2].sql}`,
 );
 
+// JSON source/output use read_json and FORMAT json.
+const jsrc = node('j', 'jsonSource', 'json_1', { path: '/tmp/a.json', format: 'array', maximum_depth: '-1', columns: "{id: 'INTEGER'}" });
+const jout = node('k', 'jsonOutput', 'out_2', { path: '/tmp/o.json', array: 'true', compression: 'gzip' });
+const jstmts = buildStatements([jout, jsrc], [edge('j', 'k')], undefined, { dryRun: true });
+assert.equal(jstmts[0].sql, `CREATE VIEW "json_1" AS SELECT * FROM read_json('/tmp/a.json', format = 'array', maximum_depth = -1, columns = {id: 'INTEGER'})`);
+assert.equal(jstmts[1].sql, `EXPLAIN COPY (SELECT * FROM "json_1") TO '/tmp/o.json' (FORMAT json, array true, compression 'gzip')`);
+
 // targetId limits to ancestors.
 assert.deepEqual(buildStatements([src, sql, out], [edge('a', 'b'), edge('b', 'c')], 'b').map((s) => s.nodeId), ['a', 'b']);
 

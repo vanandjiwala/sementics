@@ -1,4 +1,4 @@
-import { FileCsv, Code, FloppyDisk } from '@phosphor-icons/react';
+import { FileCsv, FileJs, Code, FloppyDisk, BracketsCurly } from '@phosphor-icons/react';
 
 export const NODE_CATEGORIES = [
   { id: 'input', label: 'Input' },
@@ -19,8 +19,9 @@ export const NODE_CATALOG = [
     icon: FileCsv,
     accent: '#38bdf8',
     namePrefix: 'csv',
+    reader: 'read_csv',
     params: [
-      { key: 'path', label: 'File path (globs allowed)', type: 'text', required: true, browse: 'open' },
+      { key: 'path', label: 'File path (globs allowed)', type: 'text', required: true, browse: 'open', fileType: 'csv' },
       { key: 'header', label: 'Header', type: 'bool' },
       { key: 'delim', label: 'Delimiter', type: 'text' },
       { key: 'quote', label: 'Quote', type: 'text' },
@@ -54,6 +55,35 @@ export const NODE_CATALOG = [
     ],
   },
   {
+    kind: 'jsonSource',
+    category: 'input',
+    label: 'JSON Source',
+    description: 'Read JSON / NDJSON file(s) with DuckDB',
+    icon: FileJs,
+    accent: '#a78bfa',
+    namePrefix: 'json',
+    reader: 'read_json',
+    params: [
+      { key: 'path', label: 'File path (globs allowed)', type: 'text', required: true, browse: 'open', fileType: 'json' },
+      { key: 'format', label: 'Format', type: 'select', options: ['auto', 'newline_delimited', 'array', 'unstructured'] },
+      { key: 'records', label: 'Records', type: 'select', options: ['auto', 'true', 'false'] },
+      // read_json spells these differently from COPY's COMPRESSION option.
+      { key: 'compression', label: 'Compression', type: 'select', options: ['auto_detect', 'uncompressed', 'gzip', 'zstd'] },
+      { key: 'dateformat', label: 'Date format', type: 'text' },
+      { key: 'timestampformat', label: 'Timestamp format', type: 'text' },
+      { key: 'sample_size', label: 'Sample size (-1 = all)', type: 'number' },
+      { key: 'maximum_depth', label: 'Max nesting depth (-1 = all)', type: 'number' },
+      { key: 'maximum_object_size', label: 'Max object size (bytes)', type: 'number' },
+      { key: 'auto_detect', label: 'Auto detect', type: 'bool' },
+      { key: 'convert_strings_to_integers', label: 'Convert strings to integers', type: 'bool' },
+      { key: 'ignore_errors', label: 'Ignore errors (NDJSON only)', type: 'bool' },
+      { key: 'filename', label: 'Add filename column', type: 'bool' },
+      { key: 'hive_partitioning', label: 'Hive partitioning', type: 'bool' },
+      { key: 'union_by_name', label: 'Union by name', type: 'bool' },
+      { key: 'columns', label: "Columns (e.g. {id: 'INTEGER'})", type: 'raw' },
+    ],
+  },
+  {
     kind: 'sql',
     category: 'transformation',
     label: 'SQL Query',
@@ -71,8 +101,9 @@ export const NODE_CATALOG = [
     icon: FloppyDisk,
     accent: '#34d399',
     namePrefix: 'out',
+    format: 'csv',
     params: [
-      { key: 'path', label: 'File path', type: 'text', required: true, browse: 'save' },
+      { key: 'path', label: 'File path', type: 'text', required: true, browse: 'save', fileType: 'csv' },
       { key: 'header', label: 'Header', type: 'bool' },
       { key: 'delim', label: 'Delimiter', type: 'text' },
       { key: 'quote', label: 'Quote', type: 'text' },
@@ -81,6 +112,23 @@ export const NODE_CATALOG = [
       { key: 'dateformat', label: 'Date format', type: 'text' },
       { key: 'timestampformat', label: 'Timestamp format', type: 'text' },
       { key: 'force_quote', label: 'Force quote (e.g. * or (a, b))', type: 'raw' },
+      COMPRESSION,
+    ],
+  },
+  {
+    kind: 'jsonOutput',
+    category: 'output',
+    label: 'JSON Output',
+    description: 'Write the input to a JSON / NDJSON file',
+    icon: BracketsCurly,
+    accent: '#f472b6',
+    namePrefix: 'out',
+    format: 'json',
+    params: [
+      { key: 'path', label: 'File path', type: 'text', required: true, browse: 'save', fileType: 'json' },
+      { key: 'array', label: 'JSON array (off = NDJSON)', type: 'bool' },
+      { key: 'dateformat', label: 'Date format', type: 'text' },
+      { key: 'timestampformat', label: 'Timestamp format', type: 'text' },
       COMPRESSION,
     ],
   },

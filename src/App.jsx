@@ -322,7 +322,7 @@ function Flow() {
               busy={workflowStatus === 'running'}
               onShowAll={() => execute(preview.nodeId, { limit: PREVIEW_MAX_ROWS })}
               onDownload={async () => {
-                const exportPath = await window.sementics.saveCsv();
+                const exportPath = await window.sementics.saveFile('csv');
                 if (exportPath) execute(preview.nodeId, { exportPath });
               }}
               onClose={() => setPreview(null)}

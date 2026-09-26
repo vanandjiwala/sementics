@@ -87,19 +87,25 @@ ipcMain.handle('duckdb:dryRun', async (_event, statements, views) => {
   }
 });
 
-const CSV_FILTERS = [{ name: 'CSV', extensions: ['csv', 'tsv', 'txt', 'gz'] }, { name: 'All files', extensions: ['*'] }];
+const ALL_FILES = { name: 'All files', extensions: ['*'] };
+const FILE_FILTERS = {
+  csv: [{ name: 'CSV', extensions: ['csv', 'tsv', 'txt', 'gz'] }, ALL_FILES],
+  json: [{ name: 'JSON', extensions: ['json', 'ndjson', 'jsonl', 'gz', 'zst'] }, ALL_FILES],
+};
 
-ipcMain.handle('dialog:openCsv', async (event) => {
+ipcMain.handle('dialog:openFile', async (event, fileType) => {
+  if (!isAppFrame(event) || !Object.hasOwn(FILE_FILTERS, fileType)) return null;
   const { canceled, filePaths } = await dialog.showOpenDialog(BrowserWindow.fromWebContents(event.sender), {
     properties: ['openFile'],
-    filters: CSV_FILTERS,
+    filters: FILE_FILTERS[fileType],
   });
   return canceled ? null : filePaths[0];
 });
 
-ipcMain.handle('dialog:saveCsv', async (event) => {
+ipcMain.handle('dialog:saveFile', async (event, fileType) => {
+  if (!isAppFrame(event) || !Object.hasOwn(FILE_FILTERS, fileType)) return null;
   const { canceled, filePath } = await dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender), {
-    filters: CSV_FILTERS,
+    filters: FILE_FILTERS[fileType],
   });
   return canceled ? null : filePath;
 });

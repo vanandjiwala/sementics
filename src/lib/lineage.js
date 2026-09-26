@@ -1,5 +1,6 @@
 import { lineage } from 'sqlingo';
 import { DuckDB } from 'sqlingo/duckdb';
+import { NODE_CATALOG_BY_KIND } from '../data/nodeCatalog.js';
 
 // Column-level lineage from a dry run's schemas ({ [nodeId]: [{ name, type }] }).
 // Returns { [nodeId]: [{ name, type, from }] }, where `from` lists immediate upstream
@@ -11,7 +12,7 @@ export function buildLineage(nodes, edges, schemas) {
 
   for (const node of nodes) {
     const { kind, config = {} } = node.data;
-    if (kind === 'csvOutput') {
+    if (NODE_CATALOG_BY_KIND[kind]?.category === 'output') {
       const [input] = inputsOf(node.id);
       const cols = input && schemas[input.id];
       if (cols) result[node.id] = cols.map((c) => ({ ...c, from: [{ nodeId: input.id, column: c.name }] }));
