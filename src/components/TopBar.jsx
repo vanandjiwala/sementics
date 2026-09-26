@@ -1,51 +1,5 @@
 import React from 'react';
-import { Play, Spinner, CheckCircle, SidebarSimple, WarningCircle, ListChecks, FolderOpen, Export } from '@phosphor-icons/react';
-
-const ACTIONS = {
-  open: {
-    label: 'Open',
-    icon: FolderOpen,
-    title: 'Open a workflow from a JSON file',
-    className: 'border border-border text-foreground hover:bg-muted',
-  },
-  export: {
-    label: 'Export',
-    icon: Export,
-    title: 'Save the workflow as a JSON file',
-    className: 'border border-border text-foreground hover:bg-muted',
-  },
-  dryRun: {
-    label: 'Dry Run',
-    icon: ListChecks,
-    title: 'Validate SQL and lineage without loading data',
-    className: 'border border-border text-foreground hover:bg-muted',
-  },
-  run: {
-    label: 'Run Workflow',
-    icon: Play,
-    title: 'Run the workflow and write outputs',
-    className: 'border border-transparent bg-accent text-accent-foreground hover:opacity-90',
-  },
-};
-
-// Labels never change; only the icon of the button that started the job becomes a spinner.
-function ActionButton({ kind, running, busy, onClick }) {
-  const { label, icon, title, className } = ACTIONS[kind];
-  const Icon = busy ? Spinner : icon;
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={running}
-      aria-busy={busy}
-      title={title}
-      className={`flex shrink-0 items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-opacity focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ring disabled:cursor-not-allowed disabled:opacity-60 ${className}`}
-    >
-      <Icon size={16} className={busy ? 'animate-spin' : undefined} aria-hidden />
-      {label}
-    </button>
-  );
-}
+import { Spinner, CheckCircle, SidebarSimple, WarningCircle } from '@phosphor-icons/react';
 
 function statusOf(running, mode, lastResult) {
   if (running) {
@@ -66,7 +20,7 @@ function statusOf(running, mode, lastResult) {
   return { icon: WarningCircle, text: name ? `${what} failed at ${name}` : `${what} failed`, tone: 'text-destructive' };
 }
 
-// Persistent status indicator, separate from the action buttons; announced politely to screen readers.
+// Persistent status indicator, separate from the canvas toolbar actions; announced politely to screen readers.
 function StatusPill({ running, mode, lastResult, onFocusNode }) {
   const status = statusOf(running, mode, lastResult);
   const failedNodeId = !running && lastResult && !lastResult.ok ? lastResult.nodeId : null;
@@ -104,7 +58,7 @@ function StatusPill({ running, mode, lastResult, onFocusNode }) {
   );
 }
 
-export default function TopBar({ running, mode, lastResult, onRunAll, onDryRun, onExport, onOpen, onFocusNode, sidebarOpen, onToggleSidebar }) {
+export default function TopBar({ running, mode, lastResult, onFocusNode, sidebarOpen, onToggleSidebar }) {
   return (
     <header className="flex h-14 shrink-0 items-center justify-between gap-3 border-b border-border bg-card px-3">
       <div className="flex shrink-0 items-center gap-2">
@@ -117,14 +71,10 @@ export default function TopBar({ running, mode, lastResult, onRunAll, onDryRun, 
           <SidebarSimple size={18} />
         </button>
         <span className="font-mono text-sm font-semibold">Sementics</span>
-        <ActionButton kind="open" running={running} busy={false} onClick={onOpen} />
-        <ActionButton kind="export" running={running} busy={false} onClick={onExport} />
       </div>
 
       <div className="flex min-w-0 items-center gap-2">
         <StatusPill running={running} mode={mode} lastResult={lastResult} onFocusNode={onFocusNode} />
-        <ActionButton kind="dryRun" running={running} busy={running && mode === 'dryRun'} onClick={onDryRun} />
-        <ActionButton kind="run" running={running} busy={running && mode === 'run'} onClick={onRunAll} />
       </div>
     </header>
   );

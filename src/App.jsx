@@ -16,6 +16,7 @@ import TopBar from './components/TopBar';
 import WorkflowNode, { LineageContext } from './components/WorkflowNode';
 import { NODE_CATALOG_BY_KIND } from './data/nodeCatalog';
 import DataPreview from './components/DataPreview';
+import CanvasToolbar from './components/CanvasToolbar';
 import { buildStatements, quoteIdent, quoteStr } from './lib/pipeline';
 import { buildLineage, traceToSources } from './lib/lineage';
 import { parseWorkflow, serializeWorkflow } from './lib/workflowFile';
@@ -188,6 +189,15 @@ function Flow() {
     setLastResult({ mode: 'export', ok: result.ok, name: result.ok && baseName(result.filePath), message: result.message });
   };
 
+  const onNew = () => {
+    if (nodes.length && !window.confirm('Clear the canvas? Unsaved changes will be lost.')) return;
+    invalidate();
+    setPreview(null);
+    setWorkflowStatus('idle');
+    setNodes([]);
+    setEdges([]);
+  };
+
   const onOpen = async () => {
     if (nodes.length && !window.confirm('Replace the current workflow?')) return;
     let result;
@@ -251,10 +261,6 @@ function Flow() {
         running={workflowStatus === 'running'}
         mode={workflowMode}
         lastResult={lastResult}
-        onRunAll={() => execute()}
-        onDryRun={() => execute(undefined, { dryRun: true })}
-        onExport={onExport}
-        onOpen={onOpen}
         onFocusNode={focusNode}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
@@ -263,6 +269,15 @@ function Flow() {
         {sidebarOpen && <NodePalette />}
         <div className="flex min-w-0 flex-1 flex-col">
           <div ref={wrapperRef} className="relative min-h-0 flex-1">
+            <CanvasToolbar
+              running={workflowStatus === 'running'}
+              mode={workflowMode}
+              onNew={onNew}
+              onOpen={onOpen}
+              onExport={onExport}
+              onDryRun={() => execute(undefined, { dryRun: true })}
+              onRun={() => execute()}
+            />
             {nodes.length === 0 && (
               <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
                 <p className="font-mono text-sm text-muted-foreground">
