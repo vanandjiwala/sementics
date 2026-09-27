@@ -1,5 +1,5 @@
 import React from 'react';
-import { FilePlus, FolderOpen, Export, ListChecks, Play, Spinner } from '@phosphor-icons/react';
+import { FilePlus, FolderOpen, Export, FileSql, ListChecks, Play, Spinner } from '@phosphor-icons/react';
 
 // Icon button with an instant tooltip (name + hint) below it on hover or keyboard focus.
 function ToolButton({ label, hint, icon, onClick, disabled, busy, tone = 'text-muted-foreground hover:bg-muted hover:text-foreground' }) {
@@ -26,7 +26,7 @@ function ToolButton({ label, hint, icon, onClick, disabled, busy, tone = 'text-m
 }
 
 // Floating "island" over the canvas for workflow actions (Excalidraw-style).
-export default function CanvasToolbar({ running, mode, onNew, onOpen, onExport, onDryRun, onRun }) {
+export default function CanvasToolbar({ running, mode, onNew, onOpen, onExport, onExportSql, onDryRun, onRun }) {
   return (
     <div
       role="toolbar"
@@ -36,6 +36,13 @@ export default function CanvasToolbar({ running, mode, onNew, onOpen, onExport, 
       <ToolButton label="New" hint="Clear the canvas" icon={FilePlus} onClick={onNew} disabled={running} />
       <ToolButton label="Open" hint="Load a workflow from a JSON file" icon={FolderOpen} onClick={onOpen} disabled={running} />
       <ToolButton label="Export" hint="Save the workflow as a JSON file" icon={Export} onClick={onExport} disabled={running} />
+      <ToolButton
+        label="Export SQL"
+        hint="Translate the workflow to Spark, BigQuery, Postgres…"
+        icon={FileSql}
+        onClick={onExportSql}
+        disabled={running}
+      />
       <div className="mx-1 h-6 w-px bg-border" aria-hidden />
       <ToolButton
         label="Dry run"

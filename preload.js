@@ -7,4 +7,5 @@ contextBridge.exposeInMainWorld('sementics', {
   saveFile: (fileType) => ipcRenderer.invoke('dialog:saveFile', fileType),
   saveWorkflow: (json) => ipcRenderer.invoke('workflow:save', json),
   openWorkflow: () => ipcRenderer.invoke('workflow:open'),
+  saveScript: (sql) => ipcRenderer.invoke('script:save', sql),
 });

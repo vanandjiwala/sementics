@@ -17,6 +17,7 @@ import WorkflowNode, { LineageContext } from './components/WorkflowNode';
 import { NODE_CATALOG_BY_KIND } from './data/nodeCatalog';
 import DataPreview from './components/DataPreview';
 import CanvasToolbar from './components/CanvasToolbar';
+import ExportSqlDialog from './components/ExportSqlDialog';
 import { buildStatements, quoteIdent, quoteStr } from './lib/pipeline';
 import { buildLineage, traceToSources } from './lib/lineage';
 import { parseWorkflow, serializeWorkflow } from './lib/workflowFile';
@@ -47,6 +48,8 @@ function Flow() {
   // Column-level lineage from the last successful dry run; cleared on any graph edit.
   const [lineage, setLineage] = useState(null);
   const [preview, setPreview] = useState(null);
+  // Dry-run schemas while the Export SQL dialog is open.
+  const [sqlExport, setSqlExport] = useState(null);
   const [theme, toggleTheme] = useTheme();
   const wrapperRef = useRef(null);
   const { screenToFlowPosition, fitView, getViewport, setViewport } = useReactFlow();
@@ -150,6 +153,7 @@ function Flow() {
           ? { mode, ok: true, count: ids.length }
           : { mode, ok: false, nodeId: result.nodeId, name: nameOf(result.nodeId) },
       );
+      return result;
     },
     [workflowStatus, nodes, edges, setStatuses],
   );
@@ -189,6 +193,12 @@ function Flow() {
     }
     if (result.canceled) return;
     setLastResult({ mode: 'export', ok: result.ok, name: result.ok && baseName(result.filePath), message: result.message });
+  };
+
+  // Validate against DuckDB first; a failure is already shown on the node and in the top bar.
+  const onExportSql = async () => {
+    const result = await execute(undefined, { dryRun: true });
+    if (result?.ok) setSqlExport({ schemas: result.schemas });
   };
 
   const onNew = () => {
@@ -279,6 +289,7 @@ function Flow() {
               onNew={onNew}
               onOpen={onOpen}
               onExport={onExport}
+              onExportSql={onExportSql}
               onDryRun={() => execute(undefined, { dryRun: true })}
               onRun={() => execute()}
             />
@@ -329,6 +340,18 @@ function Flow() {
             />
           )}
         </div>
+        {sqlExport && (
+          <ExportSqlDialog
+            nodes={nodes}
+            edges={edges}
+            schemas={sqlExport.schemas}
+            onFocusNode={focusNode}
+            onSaved={(r) =>
+              setLastResult({ mode: 'export', ok: r.ok, name: r.ok && baseName(r.filePath), message: r.message })
+            }
+            onClose={() => setSqlExport(null)}
+          />
+        )}
         {selectedNode && (
           <NodeConfigPanel
             key={selectedNode.id}

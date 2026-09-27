@@ -128,6 +128,21 @@ ipcMain.handle('workflow:save', async (event, json) => {
   }
 });
 
+ipcMain.handle('script:save', async (event, sql) => {
+  if (!isAppFrame(event) || typeof sql !== 'string') return { ok: false, message: 'Invalid request' };
+  const { canceled, filePath } = await dialog.showSaveDialog(BrowserWindow.fromWebContents(event.sender), {
+    defaultPath: path.join(app.getPath('documents'), 'workflow.sql'),
+    filters: [{ name: 'SQL script', extensions: ['sql'] }],
+  });
+  if (canceled || !filePath) return { ok: false, canceled: true };
+  try {
+    await fs.writeFile(filePath, sql, 'utf8');
+    return { ok: true, filePath };
+  } catch (err) {
+    return { ok: false, message: err.message };
+  }
+});
+
 // Only reads the file; the renderer parses and validates it.
 ipcMain.handle('workflow:open', async (event) => {
   if (!isAppFrame(event)) return { ok: false, message: 'Invalid request' };
