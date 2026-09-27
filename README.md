@@ -9,7 +9,7 @@ Sementics is a desktop app for building data workflows. You drag sources, SQL tr
 ## Features
 
 - **Visual workflow editor.** Drag nodes from the palette, connect them and configure each one in the side panel. Built on [React Flow](https://reactflow.dev).
-- **CSV and JSON in and out.** Source nodes wrap DuckDB's `read_csv` / `read_json` and expose their options: delimiters, headers, NDJSON vs. array, nested-type detection, compression, globs, Hive partitioning and more. Output nodes write CSV, a JSON array or NDJSON.
+- **CSV, JSON and Parquet in and out.** Source nodes wrap DuckDB's `read_csv` / `read_json` / `read_parquet` and expose their options: delimiters, headers, NDJSON vs. array, nested-type detection, compression, globs, Hive partitioning and more. Output nodes write CSV, a JSON array, NDJSON or Parquet (snappy, zstd, gzip, …).
 - **SQL transformations.** A SQL node can query any upstream node by its name. You get the full DuckDB dialect: CTEs, `unnest`, window functions, structs and lists.
 - **Run all or part of a workflow.** Run the whole workflow, or run a single node to preview its first rows. From the preview you can load up to 10,000 rows or download the result as CSV. Errors point to the node that failed.
 - **Dry run with column lineage.** Checks every node without reading any data, shows each node's output schema and traces which upstream columns each column comes from.

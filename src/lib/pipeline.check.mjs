@@ -32,6 +32,13 @@ const jstmts = buildStatements([jout, jsrc], [edge('j', 'k')], undefined, { dryR
 assert.equal(jstmts[0].sql, `CREATE VIEW "json_1" AS SELECT * FROM read_json('/tmp/a.json', format = 'array', maximum_depth = -1, columns = {id: 'INTEGER'})`);
 assert.equal(jstmts[1].sql, `EXPLAIN COPY (SELECT * FROM "json_1") TO '/tmp/o.json' (FORMAT json, array true, compression 'gzip')`);
 
+// Parquet source/output use read_parquet and FORMAT parquet.
+const psrc = node('p', 'parquetSource', 'parquet_1', { path: '/tmp/a.parquet', union_by_name: 'true' });
+const pout = node('q', 'parquetOutput', 'out_2', { path: '/tmp/o.parquet', compression: 'zstd', row_group_size: '1000' });
+const pstmts = buildStatements([pout, psrc], [edge('p', 'q')], undefined, { dryRun: true });
+assert.equal(pstmts[0].sql, `CREATE VIEW "parquet_1" AS SELECT * FROM read_parquet('/tmp/a.parquet', union_by_name = true)`);
+assert.equal(pstmts[1].sql, `EXPLAIN COPY (SELECT * FROM "parquet_1") TO '/tmp/o.parquet' (FORMAT parquet, compression 'zstd', row_group_size 1000)`);
+
 // targetId limits to ancestors.
 assert.deepEqual(buildStatements([src, sql, out], [edge('a', 'b'), edge('b', 'c')], 'b').map((s) => s.nodeId), ['a', 'b']);
 

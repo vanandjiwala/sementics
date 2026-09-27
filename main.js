@@ -91,6 +91,7 @@ const ALL_FILES = { name: 'All files', extensions: ['*'] };
 const FILE_FILTERS = {
   csv: [{ name: 'CSV', extensions: ['csv', 'tsv', 'txt', 'gz'] }, ALL_FILES],
   json: [{ name: 'JSON', extensions: ['json', 'ndjson', 'jsonl', 'gz', 'zst'] }, ALL_FILES],
+  parquet: [{ name: 'Parquet', extensions: ['parquet', 'pq'] }, ALL_FILES],
 };
 
 ipcMain.handle('dialog:openFile', async (event, fileType) => {

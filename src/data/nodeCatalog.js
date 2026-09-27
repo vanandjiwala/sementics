@@ -1,4 +1,4 @@
-import { FileCsv, FileJs, Code, FloppyDisk, BracketsCurly } from '@phosphor-icons/react';
+import { FileCsv, FileJs, Table, Code, FloppyDisk, BracketsCurly, Package } from '@phosphor-icons/react';
 
 export const NODE_CATEGORIES = [
   { id: 'input', label: 'Input' },
@@ -84,6 +84,24 @@ export const NODE_CATALOG = [
     ],
   },
   {
+    kind: 'parquetSource',
+    category: 'input',
+    label: 'Parquet Source',
+    description: 'Read Parquet file(s) with DuckDB',
+    icon: Table,
+    accent: '#2dd4bf',
+    namePrefix: 'parquet',
+    reader: 'read_parquet',
+    params: [
+      { key: 'path', label: 'File path (globs allowed)', type: 'text', required: true, browse: 'open', fileType: 'parquet' },
+      { key: 'binary_as_string', label: 'Binary as string', type: 'bool' },
+      { key: 'filename', label: 'Add filename column', type: 'bool' },
+      { key: 'file_row_number', label: 'Add file_row_number column', type: 'bool' },
+      { key: 'hive_partitioning', label: 'Hive partitioning', type: 'bool' },
+      { key: 'union_by_name', label: 'Union by name', type: 'bool' },
+    ],
+  },
+  {
     kind: 'sql',
     category: 'transformation',
     label: 'SQL Query',
@@ -130,6 +148,23 @@ export const NODE_CATALOG = [
       { key: 'dateformat', label: 'Date format', type: 'text' },
       { key: 'timestampformat', label: 'Timestamp format', type: 'text' },
       COMPRESSION,
+    ],
+  },
+  {
+    kind: 'parquetOutput',
+    category: 'output',
+    label: 'Parquet Output',
+    description: 'Write the input to a Parquet file',
+    icon: Package,
+    accent: '#fb923c',
+    namePrefix: 'out',
+    format: 'parquet',
+    params: [
+      { key: 'path', label: 'File path', type: 'text', required: true, browse: 'save', fileType: 'parquet' },
+      // Parquet rejects COMPRESSION's 'auto'/'none'; unset = DuckDB's default (snappy).
+      { key: 'compression', label: 'Compression', type: 'select', options: ['snappy', 'zstd', 'gzip', 'brotli', 'lz4', 'lz4_raw', 'uncompressed'] },
+      { key: 'compression_level', label: 'Compression level', type: 'number' },
+      { key: 'row_group_size', label: 'Row group size (rows)', type: 'number' },
     ],
   },
 ];
