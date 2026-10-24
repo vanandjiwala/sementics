@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - `npm start` — build, then run Electron against the built files.
 - `npm run dist:mac` / `npm run dist:win` — package with electron-builder (see README for signing/notarization env vars; `build/notarize.js` runs as `afterSign`).
 
-No test runner or linter is configured.
+No test runner or linter is configured. CI: `.github/workflows/build.yml` packages mac + win on PRs to main (unsigned, installers uploaded as run artifacts) and runs the `*.check.mjs` self-checks.
 
 ## Architecture
 

@@ -1,0 +1,47 @@
+name: Build
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            script: dist:mac
+          - os: windows-latest
+            script: dist:win
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 90
+    env:
+      CSC_IDENTITY_AUTO_DISCOVERY: false # unsigned PR builds
+      JOBS: max # node-gyp: duckdb compiles from source for the Electron ABI
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node src/lib/pipeline.check.mjs && node src/lib/lineage.check.mjs && node src/lib/sqlExport.check.mjs && node src/lib/workflowFile.check.mjs
+        if: matrix.os == 'macos-latest'
+      - run: npm run ${{ matrix.script }} -- --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sementics-${{ runner.os }}
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.exe
+          if-no-files-found: error
+          retention-days: 7
