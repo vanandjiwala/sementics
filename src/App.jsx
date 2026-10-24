@@ -180,7 +180,7 @@ function Flow() {
     ...c,
     sources: traceToSources(lineage, selectedNode.id, c.name)
       ?.filter((s) => s.nodeId !== selectedNode.id)
-      .map((s) => `${nameOf(s.nodeId)}.${s.column}`),
+      .map((s) => `${nameOf(s.nodeId)}.${s.column}`) ?? null,
   }));
 
   // Export never touches graph state, so the canvas stays exactly as it was.

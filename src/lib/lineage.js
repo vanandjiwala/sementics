@@ -31,6 +31,26 @@ export function buildLineage(nodes, edges, schemas) {
     );
     const nodeIdByName = new Map(inputs.map((n) => [n.data.name.toLowerCase(), n.id]));
     const query = config.query.trim().replace(/;\s*$/, '');
+    // sqlingo reads `col.*` as a table star, but on a STRUCT column DuckDB expands its fields.
+    const structCols = new Set(
+      inputs.flatMap((n) => schemas[n.id].filter((c) => /^STRUCT\(.*\)$/i.test(c.type)).map((c) => c.name.toLowerCase())),
+    );
+    // ponytail: regex over the SQL text (bare identifiers only, may hit string literals); use the AST if it misfires.
+    const expandStructStar = (column) => {
+      const q = `"${column.replaceAll('"', '""')}"`;
+      return query.replace(/\b(\w+)\.\*/g, (m, id) =>
+        structCols.has(id.toLowerCase()) && !nodeIdByName.has(id.toLowerCase()) ? `${id}.${q} AS ${q}` : m,
+      );
+    };
+    const trace = (column) => {
+      const opts = { schema, dialect: DuckDB };
+      try {
+        return lineage(column, query, opts);
+      } catch (err) {
+        if (!structCols.size) throw err;
+        return lineage(column, expandStructStar(column), opts); // column may be a struct field
+      }
+    };
 
     // ponytail: sqlingo's coverage of DuckDB-only syntax is best effort (unresolved → from: null);
     // fall back to DuckDB's json_serialize_sql AST if the gaps matter.
@@ -38,7 +58,7 @@ export function buildLineage(nodes, edges, schemas) {
       try {
         const leaves = [];
         const walk = (l) => (l.downstream?.length ? l.downstream.forEach(walk) : leaves.push(l));
-        walk(lineage(c.name, query, { schema, dialect: DuckDB }));
+        walk(trace(c.name));
         const from = [];
         for (const leaf of leaves) {
           // leaf.name is `alias."normalized col"`; leaf.source is the real table.

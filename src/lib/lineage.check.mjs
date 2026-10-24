@@ -40,6 +40,20 @@ assert.equal(lin.o[0].type, 'BIGINT');
 assert.deepEqual(traceToSources(lin, 'o', 'amt2'), [{ nodeId: 'b', column: 'Amt' }]);
 assert.deepEqual(traceToSources(lin, 'o', 'n'), [{ nodeId: 'a', column: 'First Name' }]);
 
+// `struct_col.*` expands the struct's fields, each traced back to the struct column.
+const struct = buildLineage(
+  [node('a', 'jsonSource', 'json_1'), node('x', 'sql', 'sql_9', { query: 'SELECT year, w.* FROM json_1' })],
+  [edge('a', 'x')],
+  {
+    a: [col('year', 'VARCHAR'), col('w', 'STRUCT(category VARCHAR, "name" VARCHAR)')],
+    x: [col('year', 'VARCHAR'), col('category', 'VARCHAR'), col('name', 'VARCHAR')],
+  },
+);
+assert.deepEqual(
+  Object.fromEntries(struct.x.map((c) => [c.name, c.from])),
+  { year: [{ nodeId: 'a', column: 'year' }], category: [{ nodeId: 'a', column: 'w' }], name: [{ nodeId: 'a', column: 'w' }] },
+);
+
 // Unparseable SQL degrades to "unknown" instead of throwing.
 const bad = buildLineage([node('a', 'csvSource', 'csv_1'), node('x', 'sql', 'sql_9', { query: 'SELEC oops' })], [edge('a', 'x')], {
   a: [col('id')],

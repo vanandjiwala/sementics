@@ -109,7 +109,10 @@ export default function NodeConfigPanel({ node, inputNames, columns, onNameChang
         )}
         {columns && (
           <section className="flex flex-col gap-1">
-            <h3 className="pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Columns</h3>
+            <h3 className="pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Output columns</h3>
+            <p className="pb-1 text-xs text-muted-foreground">
+              From the last dry run. ← shows the source column each one comes from.
+            </p>
             {columns.map((c) => (
               <div key={c.name} className="flex flex-col border-b border-border pb-1 text-xs last:border-b-0">
                 <div className="flex justify-between gap-2">
@@ -117,7 +120,7 @@ export default function NodeConfigPanel({ node, inputNames, columns, onNameChang
                   <span className="shrink-0 text-muted-foreground">{c.type}</span>
                 </div>
                 {(c.sources === null || c.sources.length > 0) && (
-                  <span className="break-words text-muted-foreground">← {c.sources?.join(', ') ?? 'unknown'}</span>
+                  <span className="break-words text-muted-foreground">← {c.sources?.join(', ') ?? 'source unknown'}</span>
                 )}
               </div>
             ))}
